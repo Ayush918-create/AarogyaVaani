@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
+:root { --font-clinical: 'Plus Jakarta Sans'; --font-body: 'Inter'; --gov-navy:#0a3d62; --gov-green:#147a4d; --gov-saffron:#e77817; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #f5f8fa; color: #102a43; font-family: var(--font-body), Arial, sans-serif; }
+button,input,select,textarea { font:inherit; }
+/* Keep portal workspaces in the same single-column flow on a desktop screen as on a phone. */
+@media (min-width: 640px) {
+  main.max-w-md [class*="grid-cols"] { grid-template-columns: minmax(0, 1fr) !important; }
+}
+.card, .clinical-card { @apply rounded-xl border border-slate-300 bg-white shadow-soft; border-top: 4px solid var(--gov-navy); }.btn { @apply inline-flex items-center justify-center rounded-md px-4 py-3 font-bold transition focus:outline-none focus:ring-4 focus:ring-amber-100 disabled:opacity-50; }.btn-primary { @apply btn text-white hover:brightness-95; background:var(--gov-navy); }.btn-secondary { @apply btn border border-slate-400 bg-white text-ink hover:bg-slate-50; }.input { @apply w-full rounded-md border border-slate-400 bg-white px-4 py-3 outline-none focus:ring-4 focus:ring-amber-100; }.input:focus { border-color:var(--gov-navy); }.label { @apply mb-2 block text-sm font-bold text-slate-800; }.badge { @apply rounded-md px-3 py-1 text-xs font-bold; }.clinical-eyebrow { @apply text-[11px] font-bold uppercase tracking-[.12em]; color:var(--gov-green); } h1,h2,h3 { font-family: var(--font-clinical), Arial, sans-serif; } header { border-bottom:3px solid var(--gov-saffron); } a:focus-visible,button:focus-visible,input:focus-visible { outline:3px solid var(--gov-saffron); outline-offset:2px; }

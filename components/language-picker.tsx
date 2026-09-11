@@ -1,0 +1,4 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { languages, LANGUAGE_STORAGE_KEY } from '@/lib/languages';
+export function LanguagePicker({ dark = false }: { dark?: boolean }) { const [value, setValue] = useState('en-IN'); useEffect(() => setValue(localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en-IN'), []); return <label className={`flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-bold ${dark ? 'border-white/20 bg-white/10 text-white' : 'border-slate-200 bg-white text-slate-700'}`}><span aria-hidden>🌐</span><select aria-label="Choose language" className="max-w-24 bg-transparent outline-none" value={value} onChange={e => { setValue(e.target.value); localStorage.setItem(LANGUAGE_STORAGE_KEY, e.target.value); window.dispatchEvent(new Event('aarogyavaani-language')); }}>{languages.map(l => <option className="text-slate-900" key={l.code} value={l.code}>{l.label}</option>)}</select></label> }
