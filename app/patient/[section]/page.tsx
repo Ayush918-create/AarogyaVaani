@@ -37,10 +37,10 @@ export default function PatientSection(){
  }
  useEffect(()=>{load()},[section]);
  async function requestAnalysis(sourceType:'medical_document'|'report',source:any){
-  setAnalyzing(true); setNotice('Reading the document securely with OCR and preparing AI-assisted extraction…'); const {data:{session}}=await supabase.auth.getSession();
-  const response=await fetch('/api/analyze-document',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session?.access_token||''}`},body:JSON.stringify({source_type:sourceType,source_id:source.id,file_path:source.storage_path})});
-  const body=await response.json().catch(()=>({})); setAnalyzing(false); if(!response.ok){setNotice(body.error||'The original document was saved, but analysis could not be completed.');return}
-  setAnalyses(old=>({...old,[source.id]:body.analysis})); setNotice('AI document analysis is ready. Verify important information against the original document.');
+  setAnalyzing(true); setNotice('Reading the document securely with OCR and preparing AI-assisted extraction…');
+  try {const {data:{session}}=await supabase.auth.getSession(); const response=await fetch('/api/analyze-document',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session?.access_token||''}`},body:JSON.stringify({source_type:sourceType,source_id:source.id,file_path:source.storage_path})}); const body=await response.json().catch(()=>({})); if(!response.ok){setNotice(body.error||'The original document was saved, but analysis could not be completed.');return}setAnalyses(old=>({...old,[source.id]:body.analysis}));setNotice('AI document analysis is ready. Verify important information against the original document.');}
+  catch {setNotice('The original document was saved, but the analysis service could not be reached. Check that the deployed server has the Azure and Gemini environment variables, then try Analyze document again.');}
+  finally {setAnalyzing(false)}
  }
  async function upload(){
   if(!file)return; setUploading(true); setNotice('Saving document securely…'); const {data:{user}}=await supabase.auth.getUser(); const patient=await supabase.from('patients').select('id').eq('user_id',user?.id||'').single();
