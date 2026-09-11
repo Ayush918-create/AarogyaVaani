@@ -17,6 +17,11 @@ create table if not exists public.document_ai_analyses (
 
 alter table public.document_ai_analyses enable row level security;
 
+drop policy if exists "patient reads own document analyses" on public.document_ai_analyses;
+drop policy if exists "assigned doctor reads document analyses" on public.document_ai_analyses;
+drop policy if exists "patient saves own document analyses" on public.document_ai_analyses;
+drop policy if exists "patient updates own document analyses" on public.document_ai_analyses;
+
 create policy "patient reads own document analyses" on public.document_ai_analyses
 for select to authenticated using (public.owns_patient(patient_id));
 create policy "assigned doctor reads document analyses" on public.document_ai_analyses
