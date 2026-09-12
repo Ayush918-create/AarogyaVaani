@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { LanguagePicker } from '@/components/language-picker';
 
-const patientNav = [['⌂','Home','/patient/dashboard'],['▣','Records','/patient/summary'],['＋','Interview','/patient/symptoms'],['◌','Profile','/patient/family']];
+const patientNav = [['⌂','Home','/patient/dashboard'],['▣','Records','/patient/summary'],['◷','Appointments','/patient/appointments'],['＋','Interview','/patient/symptoms'],['◌','Profile','/patient/family']];
 const doctorNav = [['⌂','Queue','/doctor/dashboard'],['▣','Patients','/doctor/dashboard']];
 
 export function PortalShell({ role, title, children }: { role:'patient'|'doctor'; title:string; children:React.ReactNode }) {
