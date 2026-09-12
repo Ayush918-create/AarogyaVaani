@@ -1,6 +1,9 @@
 -- Search the imported Indian medicine catalogue by brand, salt/generic composition,
 -- medicine form, and approximate spelling without returning clinical recommendations.
 create extension if not exists pg_trgm;
+-- PostgreSQL cannot change a function's OUT-column row type in place.
+-- This only replaces the search RPC; it does not alter medicine data.
+drop function if exists public.search_medicines(text);
 create or replace function public.search_medicines(search_term text)
 returns table(source_id bigint, name text, salt_composition text, manufacturer_name text, medicine_type text, pack_size_label text)
 language sql stable security definer set search_path = public as $$
