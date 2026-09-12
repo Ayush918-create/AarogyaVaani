@@ -44,6 +44,8 @@ const medicineHistory: Partial<Record<Locale, Dictionary>> = {
 const originalText = new WeakMap<Text, string>();
 function translate(value: string, locale: Locale) { return locale === 'en-IN' ? value : (dictionaries[locale]?.[value] || medicineHistory[locale]?.[value] || value); }
 function applyLanguage(locale: Locale) {
+  document.documentElement.lang = locale;
+  document.documentElement.dir = languages.find(language => language.code === locale)?.direction || 'ltr';
   const walk = (node: Node) => {
     if (node.nodeType === Node.TEXT_NODE) {
       const textNode = node as Text; const parent = textNode.parentElement;

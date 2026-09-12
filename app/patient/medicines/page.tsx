@@ -1,5 +1,6 @@
 import { PortalShell } from '@/components/portal-shell';
 import { PatientMedicineHistory } from '@/components/patient-medicine-history';
+import { PatientTreatmentRoutine } from '@/components/patient-treatment-routine';
 
 export default function MedicinesPage() {
   return <PortalShell role="patient" title="My medicines">
@@ -9,5 +10,6 @@ export default function MedicinesPage() {
       <p className="mt-2 max-w-2xl text-cyan-50">Help your care team understand medicines you are currently using. Always follow your clinician’s advice for starting, changing, or stopping medicine.</p>
     </div>
     <PatientMedicineHistory />
+    <PatientTreatmentRoutine />
   </PortalShell>;
 }
