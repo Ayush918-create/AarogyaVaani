@@ -42,6 +42,7 @@ export default function Symptoms() {
   const [mode, setMode] = useState<'voice' | 'typing'>('typing');
   const [answers, setAnswers] = useState<string[]>([]);
   const [questionIndex, setQuestionIndex] = useState(0);
+  const [questionPlan, setQuestionPlan] = useState<string[]>([]);
   const [answer, setAnswer] = useState('');
   const [notice, setNotice] = useState('');
   const [listening, setListening] = useState(false);
@@ -51,11 +52,10 @@ export default function Symptoms() {
   const track = useMemo(() => answers[0] ? trackFor(answers[0]) : null, [answers]);
   const initialQuestion = 'What is the main health problem or symptom you want help with?';
   const current = questionIndex;
-  // Derive the plan from the first saved answer instead of a delayed state update.
-  // This guarantees the visible question changes immediately after each Continue tap.
-  const questions = answers[0]
-    ? [initialQuestion, ...trackFor(answers[0]).questions, 'Are you using any medicines, vitamins, inhalers, injections, or home remedies now? Type “none” if you are not using any.', 'What is the medicine name and how are you using it? Start typing to choose it from the hospital medicine list, or write “none”.']
-    : [initialQuestion];
+  // Keep the visible sequence as one explicit plan.  Building it at the same
+  // time as the first answer prevents React state timing from ever rendering
+  // Question 1 again at later interview steps.
+  const questions = questionPlan.length ? questionPlan : [initialQuestion];
 
   useEffect(() => setLanguage(localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en-IN'), []);
   useEffect(() => {
@@ -67,7 +67,7 @@ export default function Symptoms() {
     return () => clearTimeout(timer);
   }, [current, medicineName]);
 
-  function start() { localStorage.setItem(LANGUAGE_STORAGE_KEY, language); window.dispatchEvent(new Event('aarogyavaani-language')); setAnswers([]); setQuestionIndex(0); setAnswer(''); setMedicineName(''); setNotice(''); setStage('interview'); }
+  function start() { localStorage.setItem(LANGUAGE_STORAGE_KEY, language); window.dispatchEvent(new Event('aarogyavaani-language')); setAnswers([]); setQuestionIndex(0); setQuestionPlan([initialQuestion]); setAnswer(''); setMedicineName(''); setNotice(''); setStage('interview'); }
   function speak() {
     const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!Recognition) { setNotice('Voice typing is not supported in this browser. Please type your answer.'); return; }
@@ -80,6 +80,15 @@ export default function Symptoms() {
     const value = current === 9 ? medicineName.trim() : answer.trim();
     if (!value) { setNotice('Please add an answer before continuing.'); return; }
     const result = [...answers, value];
+    if (current === 0) {
+      const focusedQuestions = trackFor(value).questions;
+      setQuestionPlan([
+        initialQuestion,
+        ...focusedQuestions,
+        'Are you using any medicines, vitamins, inhalers, injections, or home remedies now? Type “none” if you are not using any.',
+        'What is the medicine name and how are you using it? Start typing to choose it from the hospital medicine list, or write “none”.',
+      ]);
+    }
     setAnswers(result); setAnswer(''); setMedicineName(''); setSuggestions([]); setNotice('');
     if (current >= 9) setStage('review'); else setQuestionIndex(current + 1);
   }
@@ -89,7 +98,7 @@ export default function Symptoms() {
     const combined = answers.map((item, index) => `${questions[index] || 'Additional information'}\n${item}`).join('\n\n');
     const { error } = await supabase.from('symptom_entries').insert({ patient_id: profile.patient.id, symptom_text: combined, input_method: mode === 'voice' ? 'voice' : 'typed', language: selectedSpeechLanguage() });
     setNotice(error?.message || 'Your 10-question patient history was saved for your care team.');
-    if (!error) { setAnswers([]); setStage('choose'); }
+    if (!error) { setAnswers([]); setQuestionPlan([]); setStage('choose'); }
   }
 
   if (stage === 'choose') return <PortalShell role="patient" title="Health interview"><section className="clinical-card p-5"><p className="clinical-eyebrow">Patient-led clinical intake</p><h2 className="mt-1 text-2xl font-extrabold">Tell your doctor what is going on.</h2><p className="mt-2 text-sm leading-6 text-slate-600">Your first answer selects a focused 10-question interview. It organizes your history for review; it does not diagnose you.</p><p className="label mt-6">Language</p><div className="grid grid-cols-2 gap-3">{languages.map(item => <button key={item.code} type="button" onClick={() => setLanguage(item.code)} className={`rounded-xl border p-3 text-left ${language === item.code ? 'border-calm bg-cyan-50' : 'border-slate-200'}`}><b>{item.label}</b></button>)}</div><p className="label mt-6">Answer method</p><div className="grid grid-cols-2 gap-3"><button type="button" onClick={() => setMode('voice')} className={`rounded-xl border p-3 text-left ${mode === 'voice' ? 'border-calm bg-cyan-50' : 'border-slate-200'}`}>Voice + touch</button><button type="button" onClick={() => setMode('typing')} className={`rounded-xl border p-3 text-left ${mode === 'typing' ? 'border-calm bg-cyan-50' : 'border-slate-200'}`}>Touch + typing</button></div><button onClick={start} className="btn-primary mt-5 w-full">Start 10-question health interview</button>{notice && <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}</section></PortalShell>;

@@ -10,12 +10,12 @@ const doctorNav = [['⌂','Queue','/doctor/dashboard'],['▣','Patients','/docto
 
 export function PortalShell({ role, title, children }: { role:'patient'|'doctor'; title:string; children:React.ReactNode }) {
   const path = usePathname(); const router = useRouter(); const nav = role === 'patient' ? patientNav : doctorNav;
-  async function logout(){ await supabase.auth.signOut(); router.push('/'); }
+  async function logout(){ await supabase.auth.signOut(); router.replace(role === 'patient' ? '/patient/login' : '/doctor/login'); }
   return <div className="min-h-screen bg-[#f7fbfb] pb-20 text-ink">
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-md items-center justify-between gap-3 px-4 py-3">
         <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[.14em] text-calm">AarogyaVaani · {role} portal</p><h1 className="truncate text-lg font-black">{title}</h1></div>
-        <div className="flex shrink-0 items-center gap-2">{role==='patient'&&<LanguagePicker/>}<button onClick={logout} className="grid h-9 w-9 place-items-center rounded-full bg-cyan-50 text-xs font-bold text-calm" aria-label="Sign out">↗</button></div>
+        <div className="flex shrink-0 items-center gap-2">{role==='patient'&&<LanguagePicker/>}<button onClick={logout} className="rounded-full bg-cyan-50 px-3 py-2 text-xs font-bold text-calm" aria-label="Sign out">Sign out</button></div>
       </div>
     </header>
     <main className="mx-auto max-w-md p-4">{children}</main>
