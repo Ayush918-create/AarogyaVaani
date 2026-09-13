@@ -36,6 +36,16 @@ function summary(answers: string[], track: Track | null) {
   return { chiefComplaint: answers[0] || 'Not recorded', track: track?.name || 'General health concern', urgent };
 }
 
+const initialQuestion = 'What is the main health problem or symptom you want help with?';
+const medicineUseQuestion = 'Are you using any medicines, vitamins, inhalers, injections, or home remedies now? Type “none” if you are not using any.';
+const medicineDetailsQuestion = 'What is the medicine name and how are you using it? Start typing to choose it from the hospital medicine list, or write “none”.';
+
+function createQuestionPlan(problem: string) {
+  // One first question + seven problem-specific questions + two medicine questions.
+  // slice(0, 7) keeps every interview to exactly ten unique steps.
+  return [initialQuestion, ...trackFor(problem).questions.slice(0, 7), medicineUseQuestion, medicineDetailsQuestion];
+}
+
 export default function Symptoms() {
   const [stage, setStage] = useState<'choose' | 'interview' | 'review'>('choose');
   const [language, setLanguage] = useState('en-IN');
@@ -43,6 +53,7 @@ export default function Symptoms() {
   const [answers, setAnswers] = useState<string[]>([]);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [questionPlan, setQuestionPlan] = useState<string[]>([]);
+  const [displayQuestion, setDisplayQuestion] = useState(initialQuestion);
   const [answer, setAnswer] = useState('');
   const [notice, setNotice] = useState('');
   const [listening, setListening] = useState(false);
@@ -50,7 +61,6 @@ export default function Symptoms() {
   const [medicineName, setMedicineName] = useState('');
 
   const track = useMemo(() => answers[0] ? trackFor(answers[0]) : null, [answers]);
-  const initialQuestion = 'What is the main health problem or symptom you want help with?';
   const current = questionIndex;
   // Keep the visible sequence as one explicit plan.  Building it at the same
   // time as the first answer prevents React state timing from ever rendering
@@ -67,7 +77,7 @@ export default function Symptoms() {
     return () => clearTimeout(timer);
   }, [current, medicineName]);
 
-  function start() { localStorage.setItem(LANGUAGE_STORAGE_KEY, language); window.dispatchEvent(new Event('aarogyavaani-language')); setAnswers([]); setQuestionIndex(0); setQuestionPlan([initialQuestion]); setAnswer(''); setMedicineName(''); setNotice(''); setStage('interview'); }
+  function start() { localStorage.setItem(LANGUAGE_STORAGE_KEY, language); window.dispatchEvent(new Event('aarogyavaani-language')); setAnswers([]); setQuestionIndex(0); setQuestionPlan([initialQuestion]); setDisplayQuestion(initialQuestion); setAnswer(''); setMedicineName(''); setNotice(''); setStage('interview'); }
   function speak() {
     const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!Recognition) { setNotice('Voice typing is not supported in this browser. Please type your answer.'); return; }
@@ -80,17 +90,10 @@ export default function Symptoms() {
     const value = current === 9 ? medicineName.trim() : answer.trim();
     if (!value) { setNotice('Please add an answer before continuing.'); return; }
     const result = [...answers, value];
-    if (current === 0) {
-      const focusedQuestions = trackFor(value).questions;
-      setQuestionPlan([
-        initialQuestion,
-        ...focusedQuestions,
-        'Are you using any medicines, vitamins, inhalers, injections, or home remedies now? Type “none” if you are not using any.',
-        'What is the medicine name and how are you using it? Start typing to choose it from the hospital medicine list, or write “none”.',
-      ]);
-    }
+    const plan = current === 0 ? createQuestionPlan(value) : questions;
+    if (current === 0) setQuestionPlan(plan);
     setAnswers(result); setAnswer(''); setMedicineName(''); setSuggestions([]); setNotice('');
-    if (current >= 9) setStage('review'); else setQuestionIndex(current + 1);
+    if (current >= 9) setStage('review'); else { setQuestionIndex(current + 1); setDisplayQuestion(plan[current + 1]); }
   }
   async function save() {
     const profile = await ensurePatientProfile();
@@ -106,5 +109,5 @@ export default function Symptoms() {
   if (stage === 'review') { const report = summary(answers, track); return <PortalShell role="patient" title="Review health history"><section className="clinical-card p-5"><h2 className="text-xl font-extrabold">Review before sharing</h2><p className="mt-2 text-sm text-slate-600">Your doctor will see this patient-reported history. It is not a medical diagnosis.</p>{report.urgent.length > 0 && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><b>Urgent attention flag</b><p className="mt-1">Potential warning signs reported: {report.urgent.join(', ')}. Seek urgent in-person care if symptoms are severe or worsening.</p></div>}<div className="mt-4 rounded-xl bg-cyan-50 p-4 text-sm text-slate-700"><p className="clinical-eyebrow">Structured patient-reported summary</p><p className="mt-2"><b>Main concern:</b> {report.chiefComplaint}</p><p className="mt-1"><b>Concern track:</b> {report.track}</p><p className="mt-1"><b>Questions answered:</b> {answers.length} of 10</p></div><div className="mt-4 space-y-3">{answers.map((item, index) => <div key={index} className="rounded-xl bg-slate-50 p-3 text-sm"><b>{questions[index]}</b><p className="mt-1">{item}</p></div>)}</div><button onClick={save} className="btn-primary mt-5 w-full">Save for my care team</button><button onClick={() => setStage('interview')} className="mt-3 w-full text-sm font-bold text-calm">Back and edit</button>{notice && <p className="mt-3 text-sm text-red-700">{notice}</p>}</section></PortalShell>; }
 
   const medicineStep = current === 9;
-  return <PortalShell role="patient" title="Health interview"><section className="clinical-card p-5"><p className="clinical-eyebrow">Question {current + 1} of 10{track && current > 0 ? ` · ${track.name}` : ''}</p><h2 className="mt-2 text-xl font-extrabold">{questions[current]}</h2>{medicineStep ? <div className="relative mt-5"><label className="label">Medicine name or “none”</label><input className="input" value={medicineName} onChange={event => setMedicineName(event.target.value)} placeholder="Start typing a medicine name" autoComplete="off" />{suggestions.length > 0 && <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl">{suggestions.map(item => <button type="button" key={item.source_id} onClick={() => { setMedicineName(item.name); setSuggestions([]); }} className="block w-full rounded-lg px-3 py-2 text-left hover:bg-cyan-50"><span className="block font-semibold">{item.name}</span><span className="block text-xs text-slate-500">{[item.salt_composition, item.medicine_type, item.manufacturer_name].filter(Boolean).join(' · ')}</span></button>)}</div>}</div> : <textarea className="input mt-5 min-h-36" value={answer} onChange={event => setAnswer(event.target.value)} placeholder="Answer in your own words" />}{mode === 'voice' && !medicineStep && <button type="button" onClick={speak} className="btn-secondary mt-3 w-full">{listening ? 'Listening…' : '🎤 Speak your answer'}</button>}<button onClick={next} className="btn-primary mt-3 w-full">{current === 9 ? 'Review history' : 'Continue'}</button>{notice && <p className="mt-3 text-sm text-red-700">{notice}</p>}</section></PortalShell>;
+  return <PortalShell role="patient" title="Health interview"><section className="clinical-card p-5"><p className="clinical-eyebrow">Question {current + 1} of 10{track && current > 0 ? ` · ${track.name}` : ''}</p><h2 className="mt-2 text-xl font-extrabold">{displayQuestion}</h2>{medicineStep ? <div className="relative mt-5"><label className="label">Medicine name or “none”</label><input className="input" value={medicineName} onChange={event => setMedicineName(event.target.value)} placeholder="Start typing a medicine name" autoComplete="off" />{suggestions.length > 0 && <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl">{suggestions.map(item => <button type="button" key={item.source_id} onClick={() => { setMedicineName(item.name); setSuggestions([]); }} className="block w-full rounded-lg px-3 py-2 text-left hover:bg-cyan-50"><span className="block font-semibold">{item.name}</span><span className="block text-xs text-slate-500">{[item.salt_composition, item.medicine_type, item.manufacturer_name].filter(Boolean).join(' · ')}</span></button>)}</div>}</div> : <textarea className="input mt-5 min-h-36" value={answer} onChange={event => setAnswer(event.target.value)} placeholder="Answer in your own words" />}{mode === 'voice' && !medicineStep && <button type="button" onClick={speak} className="btn-secondary mt-3 w-full">{listening ? 'Listening…' : '🎤 Speak your answer'}</button>}<button onClick={next} className="btn-primary mt-3 w-full">{current === 9 ? 'Review history' : 'Continue'}</button>{notice && <p className="mt-3 text-sm text-red-700">{notice}</p>}</section></PortalShell>;
 }
