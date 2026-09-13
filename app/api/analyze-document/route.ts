@@ -47,15 +47,28 @@ async function readWithAzure(bytes:Buffer){
 }
 
 async function analyzeWithGemini(ocrText:string){
-  const key = process.env.GEMINI_API_KEY; const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-  if(!key) throw new Error('AI analysis is not configured.');
+  const key = process.env.GEMINI_API_KEY;
+  if(!key) return fallbackExtraction(ocrText, 'AI analysis is not configured.');
   const instruction = `You are a medical document information extraction assistant. Analyze ONLY the information explicitly present in the OCR text. Do not diagnose the patient. Do not invent or infer medical conditions. Do not prescribe medicines. Do not change dosage, frequency, duration, or instructions. If information is missing, return null or an empty array. Preserve medicine names and dosage information exactly as written where possible. This is information extraction, not medical advice. Return JSON only matching this schema: {"summary":"string","patient_name":"string or null","doctor_name":"string or null","document_date":"string or null","document_type":"prescription | lab_report | medical_report | discharge_summary | other","medicines":[{"name":"string","dosage":"string or null","frequency":"string or null","duration":"string or null","instructions":"string or null"}],"diagnoses_mentioned":[],"tests_or_results":[],"warnings_or_followups":[],"confidence_note":"string"}. OCR text follows:\n\n${ocrText.slice(0,50000)}`;
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts:[{text:instruction}]}],generationConfig:{responseMimeType:'application/json',temperature:0}})});
-  if(!response.ok) throw new Error('AI extraction could not be completed.');
-  const body = await response.json() as {candidates?:Array<{content?:{parts?:Array<{text?:string}>}}>};
-  const text = body.candidates?.[0]?.content?.parts?.map(part=>part.text||'').join('') || '';
-  if(!text) throw new Error('AI extraction returned no result.');
-  try{return parseGeminiJson(text)}catch{throw new Error('AI extraction returned an unreadable result.')}
+  const models = Array.from(new Set([process.env.GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-2.0-flash'].filter(Boolean))) as string[];
+  for (const model of models) {
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts:[{text:instruction}]}],generationConfig:{responseMimeType:'application/json',temperature:0}})});
+      if(!response.ok) continue;
+      const body = await response.json() as {candidates?:Array<{content?:{parts?:Array<{text?:string}>}}>};
+      const text = body.candidates?.[0]?.content?.parts?.map(part=>part.text||'').join('') || '';
+      if(text) return parseGeminiJson(text);
+    } catch { /* try the next supported model */ }
+  }
+  return fallbackExtraction(ocrText, 'AI formatting was unavailable, so this is an OCR-only extraction.');
+}
+
+function fallbackExtraction(ocrText:string, confidenceNote:string):Extraction {
+  const excerpt = ocrText.replace(/\s+/g,' ').trim().slice(0,1400);
+  return {
+    summary: excerpt ? `OCR extracted the following document text for clinician review: ${excerpt}` : 'No readable text was extracted.',
+    patient_name:null, doctor_name:null, document_date:null, document_type:'other', medicines:[], diagnoses_mentioned:[], tests_or_results:[], warnings_or_followups:[], confidence_note: `${confidenceNote} Verify every item against the original document.`,
+  };
 }
 
 export async function POST(request:NextRequest){
