@@ -63,6 +63,26 @@ async function analyzeWithGemini(ocrText:string){
   return fallbackExtraction(ocrText, 'AI formatting was unavailable, so this is an OCR-only extraction.');
 }
 
+async function analyzeFileWithGemini(bytes:Buffer, mimeType:string) {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error('OCR could not read this document.');
+  const instruction = 'Extract patient-record information only from this uploaded medical document. Do not diagnose or prescribe. Return JSON with summary, patient_name, doctor_name, document_date, document_type, medicines, diagnoses_mentioned, tests_or_results, warnings_or_followups, and confidence_note. Use null or empty arrays for missing data.';
+  const models = Array.from(new Set([process.env.GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-2.0-flash'].filter(Boolean))) as string[];
+  for (const model of models) {
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contents:[{role:'user',parts:[{text:instruction},{inlineData:{mimeType:mimeType || 'application/octet-stream',data:bytes.toString('base64')}}]}],generationConfig:{responseMimeType:'application/json',temperature:0}}),
+      });
+      if (!response.ok) continue;
+      const body = await response.json() as {candidates?:Array<{content?:{parts?:Array<{text?:string}>}}>};
+      const text = body.candidates?.[0]?.content?.parts?.map(part=>part.text||'').join('') || '';
+      if (text) return parseGeminiJson(text);
+    } catch { /* try next configured model */ }
+  }
+  throw new Error('Document analysis could not be completed. Please try again.');
+}
+
 function fallbackExtraction(ocrText:string, confidenceNote:string):Extraction {
   const excerpt = ocrText.replace(/\s+/g,' ').trim().slice(0,1400);
   return {
@@ -91,9 +111,18 @@ export async function POST(request:NextRequest){
     if(downloaded.error || !downloaded.data) return fail('The original document could not be read.',422);
     const buffer = Buffer.from(await downloaded.data.arrayBuffer());
     if(!buffer.length || buffer.length > 15*1024*1024) return fail('Only documents up to 15 MB can be analyzed.',422);
-    const ocrText = await readWithAzure(buffer);
-    if(!ocrText) return fail('No readable text was found in this document.',422);
-    const analysis = await analyzeWithGemini(ocrText);
+    let ocrText = '';
+    let analysis:Extraction;
+    try {
+      ocrText = await readWithAzure(buffer);
+      if(!ocrText) return fail('No readable text was found in this document.',422);
+      analysis = await analyzeWithGemini(ocrText);
+    } catch {
+      // Gemini can read common image/PDF uploads directly, providing a resilient fallback
+      // when the OCR provider rejects a format or is temporarily unavailable.
+      analysis = await analyzeFileWithGemini(buffer, downloaded.data.type);
+      ocrText = 'Azure OCR was unavailable; extraction was generated directly from the uploaded file.';
+    }
     const existing = await client.from('document_ai_analyses').select('id').eq('source_type',input.source_type).eq('source_id',input.source_id).maybeSingle();
     const payload = {user_id:user.id,patient_id:patientResult.data.id,source_type:input.source_type,source_id:input.source_id,file_path:input.file_path,ocr_text:ocrText,summary:analysis.summary,analysis,updated_at:new Date().toISOString()};
     const stored = existing.data ? await client.from('document_ai_analyses').update(payload).eq('id',existing.data.id).select().single() : await client.from('document_ai_analyses').insert(payload).select().single();
