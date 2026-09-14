@@ -47,6 +47,7 @@ function createQuestionPlan(problem: string) {
 }
 
 export default function Symptoms() {
+  const [clientReady, setClientReady] = useState(false);
   const [stage, setStage] = useState<'choose' | 'interview' | 'review'>('choose');
   const [language, setLanguage] = useState('en-IN');
   const [mode, setMode] = useState<'voice' | 'typing'>('typing');
@@ -71,7 +72,7 @@ export default function Symptoms() {
   // Question 1 again at later interview steps.
   const questions = questionPlan.length ? questionPlan : [initialQuestion];
 
-  useEffect(() => setLanguage(localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en-IN'), []);
+  useEffect(() => { setLanguage(localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en-IN'); setClientReady(true); }, []);
   useEffect(() => {
     const timer = setTimeout(async () => {
       if (current !== 9 || medicineName.trim().length < 2) { setSuggestions([]); return; }
@@ -80,6 +81,11 @@ export default function Symptoms() {
     }, 250);
     return () => clearTimeout(timer);
   }, [current, medicineName]);
+
+  // Browser extensions can add attributes to form controls before React hydrates.
+  // Render the interactive interview only after the browser has mounted it, so
+  // every changing question is owned by the client rather than stale SSR markup.
+  if (!clientReady) return <PortalShell role="patient" title="Health interview"><section className="clinical-card p-5"><p className="text-sm text-slate-600">Preparing your health interview…</p></section></PortalShell>;
 
   function start() { localStorage.setItem(LANGUAGE_STORAGE_KEY, language); window.dispatchEvent(new Event('aarogyavaani-language')); setInterview({answers:[],questionIndex:0,questionPlan:[initialQuestion],displayQuestion:initialQuestion}); setAnswer(''); setMedicineName(''); setNotice(''); setStage('interview'); }
   function speak() {
